@@ -1,12 +1,116 @@
 #!/usr/bin/env php
 <?php
 
-$dom = new DOMDocument();
-@$dom->loadHTML(file_get_contents('https://www.php.net/manual-lookup.php?pattern='.$argv[1]));
+(new PhpNet())
+    ->search()
+    ->checkIfExists()
+    ->loadDocs()
+    ->printAll();
 
-$xpath = new DomXPath($dom);
+class PhpNet
+{
+    public $terms = [];
 
-$nodeList = $xpath->query("//div[@class='methodsynopsis dc-description']");
-$node = $nodeList->item(0);
+    public $dom;
 
-var_dump($node->nodeValue);
+    public $xpath;
+
+    private $description;
+
+    private $signature;
+
+    public function __construct()
+    {
+        error_reporting(E_ERROR | E_PARSE); // Remove HTML broken tag warnings
+
+        global $argv;
+        array_shift($argv);
+
+        $this->terms = $argv;
+    }
+
+    public function search()
+    {
+        $this->print("Loading docs...");
+        
+        $this->dom = new DOMDocument();
+        $link      = "https://www.php.net/manual-lookup.php?pattern=" . implode("%20", $this->terms);
+        
+        $this->dom->loadHTML(file_get_contents($link));
+
+        $this->xpath = new DomXPath($this->dom);
+
+        return $this;
+    }
+
+    public function checkIfExists()
+    {
+
+        $nodeList = $this->xpath->query("//ul[@id='quickref_functions']");
+        $refs     = trim($nodeList->item(0)->textContent);
+
+        if (!$refs) {
+            return $this;
+        }
+
+        $this->print("'" . implode(' ', $this->terms) . "' not found!");
+        $this->print("Did you mean...");
+        foreach (explode(PHP_EOL, $refs) as $ref) {
+            $this->print("- {$ref}", 1);
+        }
+        exit;
+    }
+
+    public function loadDocs()
+    {
+        $this->loadDescription();
+        $this->loadSignature();
+
+        return $this;
+    }
+
+    public function printAll()
+    {
+        $this->print();
+        $this->printSignature();
+        $this->printDescription();
+        $this->print();
+
+        return $this;
+    }
+
+    public function printDescription()
+    {
+        $this->print($this->description, 2);
+
+        return $this;
+    }
+
+    public function printSignature()
+    {
+        $this->print($this->signature, 1);
+
+        return $this;
+    }
+
+    private function loadDescription()
+    {
+        $this->description = $this->loadTextFromClass("dc-title", "span");
+    }
+    
+    private function loadSignature()
+    {
+        $this->signature = $this->loadTextFromClass("methodsynopsis dc-description");
+    }
+
+    private function print(string $msg = null, int $tab = 0)
+    {
+        print(str_repeat("\t", $tab) . ($msg ?: "") . PHP_EOL);
+    }
+
+    private function loadTextFromClass(string $class, string $element = "div")
+    {
+        $nodeList = $this->xpath->query("//{$element}[@class='{$class}']");
+        return trim(preg_replace("/\s+/u", " ", $nodeList->item(0)->textContent));
+    }
+}
