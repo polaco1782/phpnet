@@ -1,0 +1,12 @@
+#!/usr/bin/env php
+<?php
+
+$dom = new DOMDocument();
+@$dom->loadHTML(file_get_contents('https://www.php.net/manual-lookup.php?pattern='.$argv[1]));
+
+$xpath = new DomXPath($dom);
+
+$nodeList = $xpath->query("//div[@class='methodsynopsis dc-description']");
+$node = $nodeList->item(0);
+
+var_dump($node->nodeValue);
